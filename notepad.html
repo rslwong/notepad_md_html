@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Markdown Notepad</title>
+  <style>
+    /* ── Reset & Tokens ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #1e1e2e;
+      --surface:   #2a2a3d;
+      --surface2:  #313145;
+      --border:    #44445a;
+      --accent:    #7c6af7;
+      --accent2:   #5b52c9;
+      --text:      #e0e0f0;
+      --text-muted:#9090b0;
+      --success:   #4caf82;
+      --danger:    #e05c7a;
+      --code-bg:   #12121c;
+      --radius:    8px;
+      --toolbar-h: 52px;
+      --statusbar-h: 26px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Toolbar ────────────────────────────────────────────────────── */
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      height: var(--toolbar-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    #toolbar .brand {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--accent);
+      margin-right: 8px;
+      white-space: nowrap;
+    }
+
+    .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--text);
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
+    .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+    .btn svg { flex-shrink: 0; }
+
+    /* file-input trick */
+    #fileInput { display: none; }
+
+    /* ── Main area ──────────────────────────────────────────────────── */
+    #main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Editor ─────────────────────────────────────────────────────── */
+    #editorPane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    #editor {
+      flex: 1;
+      resize: none;
+      border: none;
+      outline: none;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.93rem;
+      line-height: 1.7;
+      padding: 20px 24px;
+      tab-size: 2;
+      overflow-y: auto;
+    }
+
+    /* ── Preview ────────────────────────────────────────────────────── */
+    #previewPane {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      min-width: 0;
+      overflow: hidden;
+    }
+    #previewPane.visible { display: flex; }
+
+    #previewHeader {
+      padding: 6px 20px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    #preview {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 28px;
+      background: var(--bg);
+    }
+
+    /* ── Markdown rendered styles ───────────────────────────────────── */
+    #preview h1,#preview h2,#preview h3,
+    #preview h4,#preview h5,#preview h6 {
+      color: var(--accent);
+      margin: 1.2em 0 .4em;
+      line-height: 1.3;
+    }
+    #preview h1 { font-size: 2rem;   border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+    #preview h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: .2em; }
+    #preview h3 { font-size: 1.2rem; }
+    #preview h4 { font-size: 1rem;   }
+    #preview h5 { font-size: .9rem;  }
+    #preview h6 { font-size: .85rem; color: var(--text-muted); }
+    #preview p  { margin: .6em 0; line-height: 1.75; }
+    #preview a  { color: var(--accent); }
+    #preview strong { color: #fff; }
+    #preview em     { color: #c9c0ff; }
+    #preview del    { color: var(--text-muted); }
+    #preview hr {
+      border: none;
+      border-top: 2px solid var(--border);
+      margin: 1.4em 0;
+    }
+    #preview ul, #preview ol {
+      margin: .6em 0 .6em 1.6em;
+      line-height: 1.75;
+    }
+    #preview li { margin: .2em 0; }
+    #preview li input[type=checkbox] { margin-right: 6px; accent-color: var(--accent); }
+    #preview blockquote {
+      border-left: 4px solid var(--accent);
+      margin: .8em 0;
+      padding: .4em 1em;
+      background: var(--surface);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      color: var(--text-muted);
+    }
+    #preview code {
+      background: var(--code-bg);
+      color: #a8e6cf;
+      padding: .15em .45em;
+      border-radius: 4px;
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size: .88em;
+    }
+    #preview pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1em 1.2em;
+      overflow-x: auto;
+      margin: .8em 0;
+    }
+    #preview pre code {
+      background: none;
+      padding: 0;
+      color: #a8e6cf;
+      font-size: .88em;
+    }
+    #preview table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: .8em 0;
+      font-size: .9rem;
+    }
+    #preview th, #preview td {
+      border: 1px solid var(--border);
+      padding: .5em .9em;
+      text-align: left;
+    }
+    #preview th { background: var(--surface); color: var(--accent); }
+    #preview tr:nth-child(even) td { background: var(--surface); }
+    #preview img { max-width: 100%; border-radius: var(--radius); }
+
+    /* ── Status bar ─────────────────────────────────────────────────── */
+    #statusbar {
+      height: var(--statusbar-h);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 16px;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #statusbar span b { color: var(--text); font-weight: 600; }
+    #saveIndicator { margin-left: auto; color: var(--success); }
+
+    /* ── Modal backdrop ─────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.6);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: min(680px, 95vw);
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,.5);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .modal-header h2 { font-size: 1rem; color: var(--accent); }
+    .modal-close {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 1.3rem; cursor: pointer; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+
+    .modal-body {
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    /* ── Cheatsheet styles ──────────────────────────────────────────── */
+    .cs-section { margin-bottom: 22px; }
+    .cs-section h3 {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .cs-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .cs-table td { padding: 6px 10px; border: 1px solid var(--border); vertical-align: top; }
+    .cs-table td:first-child {
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      background: var(--code-bg);
+      color: #a8e6cf;
+      white-space: pre;
+      width: 50%;
+    }
+    .cs-table td:last-child { color: var(--text-muted); }
+
+    /* ── Scrollbar ──────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
+  </style>
+</head>
+<body>
+
+<!-- ── Toolbar ─────────────────────────────────────────────────────── -->
+<div id="toolbar">
+  <span class="brand">📝 MD Notepad</span>
+  <div class="sep"></div>
+
+  <button class="btn" onclick="newFile()" title="New (Ctrl+N)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    New
+  </button>
+
+  <button class="btn" onclick="triggerImport()" title="Import file (Ctrl+O)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Import
+  </button>
+  <input type="file" id="fileInput" accept=".md,.txt,.markdown" onchange="importFile(event)"/>
+
+  <button class="btn" onclick="exportFile()" title="Export file (Ctrl+S)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Export
+  </button>
+
+  <div class="sep"></div>
+
+  <button class="btn" id="previewBtn" onclick="togglePreview()" title="Toggle split preview (Ctrl+P)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+    Preview
+  </button>
+
+  <button class="btn" onclick="openCheatsheet()" title="Markdown cheat sheet">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Cheat Sheet
+  </button>
+
+  <div class="sep"></div>
+
+  <!-- Inline format helpers -->
+  <button class="btn" onclick="wrapSelection('**','**')" title="Bold (Ctrl+B)"><b>B</b></button>
+  <button class="btn" onclick="wrapSelection('*','*')"   title="Italic (Ctrl+I)"><i>I</i></button>
+  <button class="btn" onclick="wrapSelection('~~','~~')" title="Strikethrough"><s>S</s></button>
+  <button class="btn" onclick="wrapSelection('`','`')"   title="Inline Code">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+  </button>
+  <button class="btn" onclick="insertLinePrefix('> ')"  title="Blockquote">❝</button>
+  <button class="btn" onclick="insertLinePrefix('- ')"  title="Unordered list">•—</button>
+  <button class="btn" onclick="insertHr()"              title="Horizontal rule">HR</button>
+</div>
+
+<!-- ── Editor + Preview ────────────────────────────────────────────── -->
+<div id="main">
+  <div id="editorPane">
+    <textarea id="editor" spellcheck="true" placeholder="Start writing Markdown here…"></textarea>
+  </div>
+  <div id="previewPane">
+    <div id="previewHeader">Preview</div>
+    <div id="preview"></div>
+  </div>
+</div>
+
+<!-- ── Status bar ──────────────────────────────────────────────────── -->
+<div id="statusbar">
+  <span><b id="statWords">0</b> words</span>
+  <span><b id="statChars">0</b> chars</span>
+  <span><b id="statLines">0</b> lines</span>
+  <span id="saveIndicator"></span>
+</div>
+
+<!-- ── Cheat Sheet Modal ───────────────────────────────────────────── -->
+<div class="modal-overlay" id="cheatsheetModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📋 Markdown Cheat Sheet</h2>
+      <button class="modal-close" onclick="closeCheatsheet()">✕</button>
+    </div>
+    <div class="modal-body" id="cheatsheetBody"></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   Markdown Parser  (no external deps)
+   Supports: headings, bold, italic, strikethrough, inline code,
+   links, images, blockquotes, ordered/unordered/task lists,
+   fenced code blocks, tables, horizontal rules
+   ================================================================ */
+
+function parseMarkdown(md) {
+  const lines = md.split('\n');
+  let html = '';
+  let i = 0;
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function inlineEsc(s) { return escHtml(s); }
+
+  function inline(s) {
+    // images before links
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
+      (_,alt,src) => `<img src="${src}" alt="${escHtml(alt)}">`);
+    // links
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+      (_,txt,href) => `<a href="${escHtml(href)}" target="_blank" rel="noopener">${inline_no_links(txt)}</a>`);
+    // fenced inline code (backticks)
+    s = s.replace(/`([^`]+)`/g, (_,c) => `<code>${escHtml(c)}</code>`);
+    // bold+italic
+    s = s.replace(/\*\*\*(.+?)\*\*\*/g, (_,t) => `<strong><em>${inlineEsc(t)}</em></strong>`);
+    // bold
+    s = s.replace(/\*\*(.+?)\*\*/g, (_,t) => `<strong>${inlineEsc(t)}</strong>`);
+    s = s.replace(/__(.+?)__/g, (_,t) => `<strong>${inlineEsc(t)}</strong>`);
+    // italic
+    s = s.replace(/\*(.+?)\*/g, (_,t) => `<em>${inlineEsc(t)}</em>`);
+    s = s.replace(/_([^_]+)_/g, (_,t) => `<em>${inlineEsc(t)}</em>`);
+    // strikethrough
+    s = s.replace(/~~(.+?)~~/g, (_,t) => `<del>${inlineEsc(t)}</del>`);
+    return s;
+  }
+
+  function inline_no_links(s) {
+    s = s.replace(/`([^`]+)`/g, (_,c) => `<code>${escHtml(c)}</code>`);
+    s = s.replace(/\*\*(.+?)\*\*/g, (_,t) => `<strong>${inlineEsc(t)}</strong>`);
+    s = s.replace(/\*(.+?)\*/g, (_,t) => `<em>${inlineEsc(t)}</em>`);
+    s = s.replace(/~~(.+?)~~/g, (_,t) => `<del>${inlineEsc(t)}</del>`);
+    return s;
+  }
+
+  function isHr(line) {
+    return /^(\*{3,}|-{3,}|_{3,})\s*$/.test(line.trim());
+  }
+
+  function isHeading(line) {
+    return /^#{1,6}\s/.test(line);
+  }
+
+  function parseHeading(line) {
+    const m = line.match(/^(#{1,6})\s+(.+)/);
+    const level = m[1].length;
+    return `<h${level}>${inline(m[2])}</h${level}>`;
+  }
+
+  function isTableLine(line) { return line.trim().startsWith('|'); }
+
+  function parseTable(tableLines) {
+    let out = '<table>';
+    let headerDone = false;
+    for (const row of tableLines) {
+      if (/^\|[\s\-|:]+\|?\s*$/.test(row.replace(/[^|\-:\s]/,''))) {
+        // separator row
+        if (!headerDone) { out += '</tr></thead><tbody>'; headerDone = true; }
+        continue;
+      }
+      const cells = row.replace(/^\||\|$/g,'').split('|');
+      const tag = !headerDone ? 'th' : 'td';
+      if (!headerDone && !out.includes('<thead>')) out += '<thead><tr>';
+      else if (headerDone) out += '<tr>';
+      for (const cell of cells) {
+        out += `<${tag}>${inline(cell.trim())}</${tag}>`;
+      }
+      out += '</tr>';
+    }
+    if (!headerDone) out += '</tr>';
+    else out += '</tbody>';
+    out += '</table>';
+    return out;
+  }
+
+  // ── FIXED parseList ──────────────────────────────────────────────
+  // Previously used `trimmed` (whitespace-stripped) for isOL/isUL checks,
+  // which caused "- " (bullet with no text yet) to fail the regex and
+  // produce an infinite loop. Now checks against the original `line`
+  // using /^\s*/ so partial/empty list items are handled correctly.
+  function parseList(lines, startIndex) {
+    const firstLine = lines[startIndex];
+    const isOrdered = /^\s*\d+\.\s/.test(firstLine);
+
+    const tag = isOrdered ? 'ol' : 'ul';
+    let out = `<${tag}>`;
+    let idx = startIndex;
+
+    const baseIndent = firstLine.match(/^(\s*)/)[1].length;
+
+    while (idx < lines.length) {
+      const line    = lines[idx];
+      const indent  = line.match(/^(\s*)/)[1].length;
+      const trimmed = line.trim();
+
+      // Blank line ends the list
+      if (trimmed === '') { idx++; break; }
+
+      // Detect against original `line` (handles trailing-space-only items)
+      const isOL = /^\s*\d+\.\s/.test(line);
+      const isUL = /^\s*[-*+]\s/.test(line);
+      const isTL = /^\s*[-*]\s+\[[ xX]\]/.test(line);
+
+      // Not a list line — stop without consuming
+      if (!isOL && !isUL) break;
+      // De-dented past base — belongs to outer list
+      if (indent < baseIndent) break;
+
+      // More-indented — nested list
+      if (indent > baseIndent) {
+        const [subHtml, nextIdx] = parseList(lines, idx);
+        out += subHtml;
+        idx = nextIdx;
+        continue;
+      }
+
+      // Use \s* (not \s+) so empty bullets "- " render as empty <li>
+      if (isTL) {
+        const checked = /\[[xX]\]/.test(trimmed);
+        const text = trimmed.replace(/^[-*]\s+\[[ xX]\]\s*/, '');
+        out += `<li><input type="checkbox"${checked ? ' checked' : ''} disabled> ${inline(text)}</li>`;
+      } else if (isOL) {
+        const text = trimmed.replace(/^\d+\.\s*/, '');
+        out += `<li>${inline(text)}</li>`;
+      } else {
+        const text = trimmed.replace(/^[-*+]\s*/, '');
+        out += `<li>${inline(text)}</li>`;
+      }
+      idx++;
+    }
+
+    out += `</${tag}>`;
+    return [out, idx];
+  }
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Blank line
+    if (trimmed === '') { i++; continue; }
+
+    // Fenced code block
+    if (/^```/.test(trimmed)) {
+      const lang = trimmed.slice(3).trim();
+      i++;
+      let code = '';
+      while (i < lines.length && !/^```/.test(lines[i].trim())) {
+        code += escHtml(lines[i]) + '\n';
+        i++;
+      }
+      i++; // skip closing ```
+      html += `<pre><code class="language-${escHtml(lang)}">${code}</code></pre>`;
+      continue;
+    }
+
+    // Heading
+    if (isHeading(line)) {
+      html += parseHeading(line);
+      i++;
+      continue;
+    }
+
+    // HR
+    if (isHr(trimmed)) {
+      html += '<hr>';
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (/^>\s?/.test(trimmed)) {
+      let bqLines = [];
+      while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
+        bqLines.push(lines[i].trim().replace(/^>\s?/, ''));
+        i++;
+      }
+      html += `<blockquote>${parseMarkdown(bqLines.join('\n'))}</blockquote>`;
+      continue;
+    }
+
+    // Table
+    if (isTableLine(line)) {
+      let tableLines = [];
+      while (i < lines.length && isTableLine(lines[i])) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      html += parseTable(tableLines);
+      continue;
+    }
+
+    // List
+    if (/^\s*([-*+]|\d+\.)\s/.test(line)) {
+      const [listHtml, nextI] = parseList(lines, i);
+      html += listHtml;
+      i = nextI;
+      continue;
+    }
+
+    // Paragraph
+    let paraLines = [];
+    while (i < lines.length) {
+      const l = lines[i];
+      const t = l.trim();
+      if (t === '' || isHeading(l) || isHr(t) ||
+          /^```/.test(t) || /^>\s?/.test(t) ||
+          isTableLine(l) || /^\s*([-*+]|\d+\.)\s/.test(l)) break;
+      paraLines.push(l);
+      i++;
+    }
+    if (paraLines.length) {
+      html += `<p>${inline(paraLines.join(' '))}</p>`;
+    }
+  }
+
+  return html;
+}
+
+/* ================================================================
+   App State & Storage
+   ================================================================ */
+const STORAGE_KEY  = 'md_notepad_content';
+const FILENAME_KEY = 'md_notepad_filename';
+
+let previewOpen    = false;
+let saveTimer      = null;
+let currentFilename = localStorage.getItem(FILENAME_KEY) || 'document.md';
+
+const editor        = document.getElementById('editor');
+const previewPane   = document.getElementById('previewPane');
+const previewEl     = document.getElementById('preview');
+const previewBtn    = document.getElementById('previewBtn');
+const saveIndicator = document.getElementById('saveIndicator');
+const statWords     = document.getElementById('statWords');
+const statChars     = document.getElementById('statChars');
+const statLines     = document.getElementById('statLines');
+
+// Load from storage
+editor.value = localStorage.getItem(STORAGE_KEY) || '';
+updateStats();
+if (previewOpen) renderPreview();
+
+editor.addEventListener('input', () => {
+  updateStats();
+  if (previewOpen) renderPreview();
+  scheduleSave();
+});
+
+/* ── Auto-save ─────────────────────────────────────────────────── */
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    localStorage.setItem(STORAGE_KEY, editor.value);
+    localStorage.setItem(FILENAME_KEY, currentFilename);
+    saveIndicator.textContent = '✔ Saved';
+    setTimeout(() => saveIndicator.textContent = '', 1800);
+  }, 700);
+}
+
+/* ── Stats ─────────────────────────────────────────────────────── */
+function updateStats() {
+  const val   = editor.value;
+  const words = val.trim() === '' ? 0 : val.trim().split(/\s+/).length;
+  statWords.textContent = words;
+  statChars.textContent = val.length;
+  statLines.textContent = val === '' ? 0 : val.split('\n').length;
+}
+
+/* ── Preview ───────────────────────────────────────────────────── */
+function renderPreview() {
+  previewEl.innerHTML = parseMarkdown(editor.value);
+}
+
+function togglePreview() {
+  previewOpen = !previewOpen;
+  previewPane.classList.toggle('visible', previewOpen);
+  previewBtn.classList.toggle('active', previewOpen);
+  if (previewOpen) renderPreview();
+}
+
+/* ── New File ──────────────────────────────────────────────────── */
+function newFile() {
+  if (editor.value.trim() !== '') {
+    if (!confirm('Discard current content and start a new file?')) return;
+  }
+  editor.value = '';
+  currentFilename = 'document.md';
+  updateStats();
+  if (previewOpen) renderPreview();
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(FILENAME_KEY);
+}
+
+/* ── Import ────────────────────────────────────────────────────── */
+function triggerImport() {
+  document.getElementById('fileInput').click();
+}
+
+function importFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  currentFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    editor.value = ev.target.result;
+    updateStats();
+    if (previewOpen) renderPreview();
+    scheduleSave();
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // reset so same file can be re-imported
+}
+
+/* ── Export ────────────────────────────────────────────────────── */
+function exportFile() {
+  const blob = new Blob([editor.value], { type: 'text/markdown;charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = currentFilename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ── Toolbar formatting helpers ────────────────────────────────── */
+function wrapSelection(before, after) {
+  const start  = editor.selectionStart;
+  const end    = editor.selectionEnd;
+  const sel    = editor.value.substring(start, end);
+  editor.value = editor.value.substring(0, start) + before + sel + after + editor.value.substring(end);
+  editor.setSelectionRange(start + before.length, end + before.length);
+  editor.focus();
+  editor.dispatchEvent(new Event('input'));
+}
+
+function insertLinePrefix(prefix) {
+  const start     = editor.selectionStart;
+  const lineStart = editor.value.lastIndexOf('\n', start - 1) + 1;
+  editor.value    = editor.value.substring(0, lineStart) + prefix + editor.value.substring(lineStart);
+  editor.setSelectionRange(start + prefix.length, start + prefix.length);
+  editor.focus();
+  editor.dispatchEvent(new Event('input'));
+}
+
+function insertHr() {
+  const pos    = editor.selectionStart;
+  const ins    = '\n\n---\n\n';
+  editor.value = editor.value.substring(0, pos) + ins + editor.value.substring(pos);
+  editor.setSelectionRange(pos + ins.length, pos + ins.length);
+  editor.focus();
+  editor.dispatchEvent(new Event('input'));
+}
+
+/* ── Keyboard shortcuts ────────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    switch (e.key.toLowerCase()) {
+      case 'n': e.preventDefault(); newFile();       break;
+      case 'o': e.preventDefault(); triggerImport(); break;
+      case 's': e.preventDefault(); exportFile();    break;
+      case 'p': e.preventDefault(); togglePreview(); break;
+      case 'b': e.preventDefault(); wrapSelection('**','**'); break;
+      case 'i': e.preventDefault(); wrapSelection('*','*');   break;
+    }
+  }
+});
+
+// Tab key inserts 2 spaces instead of losing focus
+editor.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start  = editor.selectionStart;
+    const end    = editor.selectionEnd;
+    editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+    editor.setSelectionRange(start + 2, start + 2);
+    editor.dispatchEvent(new Event('input'));
+  }
+});
+
+/* ── Cheat Sheet ───────────────────────────────────────────────── */
+const CHEATSHEET = [
+  {
+    title: 'Headings',
+    rows: [
+      ['# Heading 1',             'Largest heading'],
+      ['## Heading 2',            'Second level'],
+      ['### Heading 3',           'Third level'],
+      ['#### – ###### Heading 4–6', 'Smaller headings'],
+    ]
+  },
+  {
+    title: 'Emphasis',
+    rows: [
+      ['**bold**  or  __bold__',  'Bold text'],
+      ['*italic*  or  _italic_',  'Italic text'],
+      ['***bold italic***',        'Bold and italic'],
+      ['~~strikethrough~~',        'Strikethrough'],
+    ]
+  },
+  {
+    title: 'Lists',
+    rows: [
+      ['- Item\n- Item\n  - Nested', 'Unordered list (also * or +)'],
+      ['1. First\n2. Second',         'Ordered list'],
+      ['- [ ] Todo\n- [x] Done',      'Task / checkbox list'],
+    ]
+  },
+  {
+    title: 'Code',
+    rows: [
+      ['`inline code`',           'Inline code'],
+      ['```\ncode block\n```',     'Fenced code block'],
+      ['```js\nconst x=1;\n```',   'Code block with language'],
+    ]
+  },
+  {
+    title: 'Links & Images',
+    rows: [
+      ['[Link text](https://url)', 'Hyperlink'],
+      ['![Alt text](image.png)',   'Image'],
+    ]
+  },
+  {
+    title: 'Blockquote',
+    rows: [
+      ['> Quoted text\n> More text', 'Blockquote (nestable)'],
+    ]
+  },
+  {
+    title: 'Horizontal Rule',
+    rows: [
+      ['---\n***\n___', 'Horizontal rule (any 3+)'],
+    ]
+  },
+  {
+    title: 'Tables',
+    rows: [
+      ['| Col 1 | Col 2 |\n|-------|-------|\n| A     | B     |', 'Table'],
+      ['| Left | Center | Right |\n|:-----|:------:|------:|',     'Aligned columns'],
+    ]
+  },
+];
+
+function openCheatsheet() {
+  const body = document.getElementById('cheatsheetBody');
+  if (!body.innerHTML) {
+    let html = '';
+    for (const section of CHEATSHEET) {
+      html += `<div class="cs-section"><h3>${section.title}</h3><table class="cs-table">`;
+      for (const [syntax, desc] of section.rows) {
+        html += `<tr><td>${escHtmlCs(syntax)}</td><td>${desc}</td></tr>`;
+      }
+      html += '</table></div>';
+    }
+    body.innerHTML = html;
+  }
+  document.getElementById('cheatsheetModal').classList.add('open');
+}
+
+function escHtmlCs(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function closeCheatsheet() {
+  document.getElementById('cheatsheetModal').classList.remove('open');
+}
+
+// Close modal on backdrop click
+document.getElementById('cheatsheetModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeCheatsheet();
+});
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeCheatsheet();
+});
+</script>
+</body>
+</html>
