@@ -299,6 +299,90 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
+
+    /* ── Print Styles ───────────────────────────────────────────────── */
+    @media print {
+      body {
+        background: white;
+        color: black;
+        height: auto;
+        overflow: visible;
+      }
+      #toolbar, #statusbar, .modal-overlay {
+        display: none !important;
+      }
+      #main {
+        display: block;
+        overflow: visible;
+      }
+      #editorPane {
+        display: none;
+      }
+      #previewPane {
+        display: block !important;
+        border: none;
+        width: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        background: white;
+        color: black;
+      }
+      #previewHeader {
+        display: none;
+      }
+      #preview {
+        padding: 0;
+        overflow: visible;
+        background: white;
+        color: black;
+      }
+      /* Adjust colors for print */
+      #preview h1, #preview h2, #preview h3,
+      #preview h4, #preview h5, #preview h6 {
+        color: black;
+        border-bottom-color: #ccc;
+      }
+      #preview a {
+        color: black;
+        text-decoration: underline;
+      }
+      #preview strong {
+        color: black;
+      }
+      #preview em {
+        color: black;
+      }
+      #preview blockquote {
+        border-left-color: #666;
+        background: #f5f5f5;
+        color: #333;
+      }
+      #preview code {
+        background: #f5f5f5;
+        color: #333;
+        border: 1px solid #ddd;
+      }
+      #preview pre {
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        page-break-inside: avoid;
+      }
+      #preview th {
+        background: #f0f0f0;
+        color: black;
+      }
+      #preview tr:nth-child(even) td {
+        background: #f9f9f9;
+      }
+      #preview img {
+        max-width: 100%;
+        page-break-inside: avoid;
+      }
+      @page {
+        margin: 2cm;
+      }
+    }
   </style>
 </head>
 <body>
@@ -334,6 +418,13 @@
   <button class="btn" onclick="openCheatsheet()" title="Markdown cheat sheet">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
     Cheat Sheet
+  </button>
+
+  <div class="sep"></div>
+
+  <button class="btn" id="exportPdfBtn" onclick="exportToPdf()" title="Export to PDF / Print (Ctrl+Shift+P)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/></svg>
+    Print 
   </button>
 
   <div class="sep"></div>
@@ -757,8 +848,11 @@ document.addEventListener('keydown', e => {
       case 'p': e.preventDefault(); togglePreview(); break;
       case 'b': e.preventDefault(); wrapSelection('**','**'); break;
       case 'i': e.preventDefault(); wrapSelection('*','*');   break;
-    }
-  }
+    }    // Ctrl+Shift+P for PDF export
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      exportToPdf();
+    }  }
 });
 
 // Tab key inserts 2 spaces instead of losing focus
@@ -859,6 +953,27 @@ function escHtmlCs(s) {
 
 function closeCheatsheet() {
   document.getElementById('cheatsheetModal').classList.remove('open');
+}
+
+/* ── Export to PDF / Print ───────────────────────────────────────── */
+function exportToPdf() {
+  // Ensure preview is rendered
+  if (!previewOpen) {
+    togglePreview();
+  }
+  renderPreview();
+  
+  // Show a brief message to the user
+  const originalText = saveIndicator.textContent;
+  saveIndicator.textContent = 'Opening print dialog...';
+  
+  // Give the browser a moment to render, then open print dialog
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      saveIndicator.textContent = originalText;
+    }, 1000);
+  }, 300);
 }
 
 // Close modal on backdrop click

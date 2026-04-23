@@ -36,6 +36,7 @@ A beautiful, feature-rich Markdown editor built as a single-page HTML applicatio
 | `Ctrl+O` | Import file |
 | `Ctrl+S` | Export file |
 | `Ctrl+P` | Toggle preview pane |
+| `Ctrl+Shift+P` | Export to PDF / Print |
 | `Ctrl+B` | Bold text |
 | `Ctrl+I` | Italic text |
 | `Tab` | Insert 2 spaces |
@@ -72,6 +73,13 @@ Modern dark color scheme with:
 ### Export Your Work
 - Click the **Export** button or press `Ctrl+S`
 - File will download with the current filename
+
+### Export to PDF / Print
+- Click the **Export PDF** button or press `Ctrl+Shift+P`
+- Opens the browser's print dialog
+- Choose "Save as PDF" or select a physical printer
+- Preview pane automatically shows for printing
+- Optimized print styles remove UI elements and use printer-friendly colors
 
 ### Start Fresh
 - Click the **New** button or press `Ctrl+N`
@@ -182,6 +190,7 @@ notepad_md_html/
 3. **Live Preview** - Toggle preview mode to see rendered output in real-time
 4. **Status Bar** - Monitor word count, character count, and line count as you write
 5. **Safe Navigation** - You'll be prompted before discarding unsaved content
+6. **PDF Export** - Use `Ctrl+Shift+P` to open print dialog and save as PDF
 
 ## 📝 License
 
