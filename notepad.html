@@ -491,6 +491,14 @@ function parseMarkdown(md) {
   function inlineEsc(s) { return escHtml(s); }
 
   function inline(s) {
+    // Step 1: Handle escape sequences - replace escaped chars with placeholders
+    const escapePlaceholders = [];
+    s = s.replace(/\\([\\`*_{}[\]()#+\-.!~|])/g, (match, char) => {
+      const placeholder = `\u0000ESC${escapePlaceholders.length}\u0000`;
+      escapePlaceholders.push(char);
+      return placeholder;
+    });
+    
     // images before links
     s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
       (_,alt,src) => `<img src="${src}" alt="${escHtml(alt)}">`);
@@ -509,14 +517,34 @@ function parseMarkdown(md) {
     s = s.replace(/_([^_]+)_/g, (_,t) => `<em>${inlineEsc(t)}</em>`);
     // strikethrough
     s = s.replace(/~~(.+?)~~/g, (_,t) => `<del>${inlineEsc(t)}</del>`);
+    
+    // Step 2: Restore escaped characters
+    escapePlaceholders.forEach((char, idx) => {
+      s = s.replace(`\u0000ESC${idx}\u0000`, char);
+    });
+    
     return s;
   }
 
   function inline_no_links(s) {
+    // Step 1: Handle escape sequences - replace escaped chars with placeholders
+    const escapePlaceholders = [];
+    s = s.replace(/\\([\\`*_{}[\]()#+\-.!~|])/g, (match, char) => {
+      const placeholder = `\u0000ESC${escapePlaceholders.length}\u0000`;
+      escapePlaceholders.push(char);
+      return placeholder;
+    });
+    
     s = s.replace(/`([^`]+)`/g, (_,c) => `<code>${escHtml(c)}</code>`);
     s = s.replace(/\*\*(.+?)\*\*/g, (_,t) => `<strong>${inlineEsc(t)}</strong>`);
     s = s.replace(/\*(.+?)\*/g, (_,t) => `<em>${inlineEsc(t)}</em>`);
     s = s.replace(/~~(.+?)~~/g, (_,t) => `<del>${inlineEsc(t)}</del>`);
+    
+    // Step 2: Restore escaped characters
+    escapePlaceholders.forEach((char, idx) => {
+      s = s.replace(`\u0000ESC${idx}\u0000`, char);
+    });
+    
     return s;
   }
 
