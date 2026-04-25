@@ -10,10 +10,11 @@ A beautiful, feature-rich Markdown editor built as a single-page HTML applicatio
 ### Core Functionality
 - **Real-time Markdown Preview** - Split-pane view with live rendering
 - **Auto-save** - Automatically saves your work to browser localStorage
-- **File Import/Export** - Import `.md`, `.txt`, `.markdown` files and export your work
+- **File Import/Export** - Import `.md`, `.txt`, `.markdown` files (via button or drag-and-drop) and export your work
 - **Word/Character/Line Count** - Live statistics in the status bar
 
 ### Markdown Support
+- **Smart Lists** - Auto-continuation of ordered, unordered, and task lists on new lines
 - **Headings** (H1-H6)
 - **Text Formatting** - Bold, italic, strikethrough, bold+italic
 - **Lists** - Ordered, unordered, and task lists with checkboxes

@@ -300,6 +300,23 @@
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
 
+    /* ── Drag & Drop Overlay ────────────────────────────────────────── */
+    body.drag-over::after {
+      content: "Drop Markdown file to import";
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 30, 46, 0.85);
+      color: var(--accent);
+      font-size: 2rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      border: 6px dashed var(--accent);
+      pointer-events: none;
+    }
+
     /* ── Print Styles ───────────────────────────────────────────────── */
     @media print {
       body {
@@ -837,6 +854,44 @@ function exportFile() {
   URL.revokeObjectURL(a.href);
 }
 
+/* ── Drag & Drop Import ────────────────────────────────────────── */
+document.body.addEventListener('dragover', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.dataTransfer.types.includes('Files')) {
+    document.body.classList.add('drag-over');
+  }
+});
+
+document.body.addEventListener('dragleave', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  document.body.classList.remove('drag-over');
+});
+
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  document.body.classList.remove('drag-over');
+  
+  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    const file = e.dataTransfer.files[0];
+    if (file.name.match(/\.(md|markdown|txt)$/i)) {
+      currentFilename = file.name;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        editor.value = ev.target.result;
+        updateStats();
+        if (previewOpen) renderPreview();
+        scheduleSave();
+      };
+      reader.readAsText(file);
+    } else {
+      alert('Please drop a .md, .markdown, or .txt file');
+    }
+  }
+});
+
 /* ── Toolbar formatting helpers ────────────────────────────────── */
 function wrapSelection(before, after) {
   const start  = editor.selectionStart;
@@ -883,7 +938,7 @@ document.addEventListener('keydown', e => {
     }  }
 });
 
-// Tab key inserts 2 spaces instead of losing focus
+// Tab key inserts 2 spaces instead of losing focus, Enter auto-continues lists
 editor.addEventListener('keydown', e => {
   if (e.key === 'Tab') {
     e.preventDefault();
@@ -892,6 +947,43 @@ editor.addEventListener('keydown', e => {
     editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
     editor.setSelectionRange(start + 2, start + 2);
     editor.dispatchEvent(new Event('input'));
+  }
+  
+  if (e.key === 'Enter') {
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    if (start !== end) return;
+    
+    const textBeforeCursor = editor.value.substring(0, start);
+    const lineStart = textBeforeCursor.lastIndexOf('\n') + 1;
+    const currentLine = textBeforeCursor.substring(lineStart);
+    
+    const listMatch = currentLine.match(/^(\s*)([-*+]|\d+\.)\s+(\[[xX ]\]\s+)?/);
+    if (listMatch) {
+      e.preventDefault();
+      const prefix = listMatch[0];
+      
+      // If the line is empty besides the prefix, end the list
+      if (currentLine === prefix) {
+        editor.value = editor.value.substring(0, lineStart) + '\n' + editor.value.substring(start);
+        editor.setSelectionRange(lineStart + 1, lineStart + 1);
+      } else {
+        // Auto-continue the list
+        let nextPrefix = prefix;
+        // Auto-increment ordered lists
+        const olMatch = prefix.match(/^(\s*)(\d+)\.(\s+.*)?$/);
+        if (olMatch) {
+          const nextNum = parseInt(olMatch[2], 10) + 1;
+          nextPrefix = prefix.replace(/^(\s*)(\d+)\./, `$1${nextNum}.`);
+        }
+        // Uncheck next checkbox if it was checked
+        nextPrefix = nextPrefix.replace(/\[[xX]\]/, '[ ]');
+        
+        editor.value = editor.value.substring(0, start) + '\n' + nextPrefix + editor.value.substring(end);
+        editor.setSelectionRange(start + 1 + nextPrefix.length, start + 1 + nextPrefix.length);
+      }
+      editor.dispatchEvent(new Event('input'));
+    }
   }
 });
 
