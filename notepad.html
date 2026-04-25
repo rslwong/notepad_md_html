@@ -889,7 +889,9 @@ function saveFilesIndex() {
 }
 
 function switchToFile(id) {
-  if (activeFileId) localStorage.setItem('md_notepad_content_' + activeFileId, editor.value);
+  if (activeFileId && activeFileId !== id && filesIndex.find(x => x.id === activeFileId)) {
+    localStorage.setItem('md_notepad_content_' + activeFileId, editor.value);
+  }
   activeFileId = id;
   const f = filesIndex.find(x => x.id === id);
   if (f) currentFilename = f.name;
