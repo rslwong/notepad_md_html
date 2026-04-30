@@ -1022,6 +1022,35 @@ function togglePreview() {
   if (previewOpen) renderPreview();
 }
 
+/* ── Synchronous Scrolling ─────────────────────────────────────── */
+let isSyncingScroll = false;
+
+function syncScrollToPreview() {
+  if (isSyncingScroll || !previewOpen) return;
+  isSyncingScroll = true;
+  
+  const editorScrollPercent = editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+  const previewScrollTop = editorScrollPercent * (previewEl.scrollHeight - previewEl.clientHeight);
+  
+  previewEl.scrollTop = previewScrollTop;
+  setTimeout(() => { isSyncingScroll = false; }, 50);
+}
+
+function syncScrollToEditor() {
+  if (isSyncingScroll || !previewOpen) return;
+  isSyncingScroll = true;
+  
+  const previewScrollPercent = previewEl.scrollTop / (previewEl.scrollHeight - previewEl.clientHeight);
+  const editorScrollTop = previewScrollPercent * (editor.scrollHeight - editor.clientHeight);
+  
+  editor.scrollTop = editorScrollTop;
+  setTimeout(() => { isSyncingScroll = false; }, 50);
+}
+
+// Attach scroll listeners
+editor.addEventListener('scroll', syncScrollToPreview);
+previewEl.addEventListener('scroll', syncScrollToEditor);
+
 /* ── Import ────────────────────────────────────────────────────── */
 function triggerImport() {
   document.getElementById('fileInput').click();
