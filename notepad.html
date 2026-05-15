@@ -148,6 +148,37 @@
     }
     .file-item:hover .file-delete { opacity: 1; }
 
+    /* ── Workspace ──────────────────────────────────────────────────── */
+    #workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+    }
+    #workspace.column {
+      flex-direction: column;
+    }
+
+    #resizer {
+      display: none;
+      background: var(--border);
+      z-index: 10;
+      flex-shrink: 0;
+    }
+    #workspace:not(.column) #resizer {
+      width: 4px;
+      cursor: col-resize;
+    }
+    #workspace.column #resizer {
+      height: 4px;
+      cursor: row-resize;
+    }
+    #resizer:hover, #resizer.resizing {
+      background: var(--accent);
+    }
+
     /* ── Editor ─────────────────────────────────────────────────────── */
     #editorPane {
       flex: 1;
@@ -155,6 +186,7 @@
       flex-direction: column;
       overflow: hidden;
       min-width: 0;
+      min-height: 0;
     }
 
     #editor {
@@ -177,8 +209,8 @@
       flex: 1;
       display: none;
       flex-direction: column;
-      border-left: 1px solid var(--border);
       min-width: 0;
+      min-height: 0;
       overflow: hidden;
     }
     #previewPane.visible { display: flex; }
@@ -426,8 +458,8 @@
         display: block;
         overflow: visible;
       }
-      #editorPane {
-        display: none;
+      #editorPane, #resizer {
+        display: none !important;
       }
       #previewPane {
         display: block !important;
@@ -525,6 +557,11 @@
     Export MD
   </button>
 
+  <button class="btn" id="mountBtn" onclick="mountFolder()" title="Mount Folder for Local Images">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    Mount Folder
+  </button>
+
   <button class="btn" onclick="exportHtml()" title="Export as HTML">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
     HTML
@@ -540,6 +577,11 @@
   <button class="btn" id="previewBtn" onclick="togglePreview()" title="Toggle split preview (Ctrl+P)">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
     Preview
+  </button>
+
+  <button class="btn" id="layoutBtn" onclick="toggleLayout()" title="Toggle split layout" style="display: none;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+    Layout
   </button>
 
   <button class="btn" onclick="openCheatsheet()" title="Markdown cheat sheet">
@@ -577,12 +619,15 @@
     </div>
     <div id="fileList"></div>
   </div>
-  <div id="editorPane">
-    <textarea id="editor" spellcheck="true" placeholder="Start writing Markdown here…"></textarea>
-  </div>
-  <div id="previewPane">
-    <div id="previewHeader">Preview</div>
-    <div id="preview"></div>
+  <div id="workspace">
+    <div id="editorPane">
+      <textarea id="editor" spellcheck="true" placeholder="Start writing Markdown here…"></textarea>
+    </div>
+    <div id="resizer"></div>
+    <div id="previewPane">
+      <div id="previewHeader">Preview</div>
+      <div id="preview"></div>
+    </div>
   </div>
 </div>
 
@@ -635,7 +680,13 @@ function parseMarkdown(md) {
     
     // images before links
     s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
-      (_,alt,src) => `<img src="${src}" alt="${escHtml(alt)}">`);
+      (_,alt,src) => {
+        if (/^(https?:\/\/|data:|blob:)/i.test(src)) {
+          return `<img src="${src}" alt="${escHtml(alt)}">`;
+        } else {
+          return `<img data-src="${src}" alt="${escHtml(alt)}">`;
+        }
+      });
     // links
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
       (_,txt,href) => `<a href="${escHtml(href)}" target="_blank" rel="noopener">${inline_no_links(txt)}</a>`);
@@ -878,9 +929,13 @@ let sidebarOpen = false;
 let saveTimer   = null;
 
 const editor        = document.getElementById('editor');
+const editorPane    = document.getElementById('editorPane');
 const previewPane   = document.getElementById('previewPane');
 const previewEl     = document.getElementById('preview');
 const previewBtn    = document.getElementById('previewBtn');
+const layoutBtn     = document.getElementById('layoutBtn');
+const workspace     = document.getElementById('workspace');
+const resizer       = document.getElementById('resizer');
 const sidebarBtn    = document.getElementById('sidebarBtn');
 const sidebar       = document.getElementById('sidebar');
 const fileList      = document.getElementById('fileList');
@@ -1052,14 +1107,123 @@ function updateStats() {
 /* ── Preview ───────────────────────────────────────────────────── */
 function renderPreview() {
   previewEl.innerHTML = parseMarkdown(editor.value);
+  resolveLocalImages();
+}
+
+let mountedDirHandle = null;
+const localImageMap = new Map();
+
+async function mountFolder() {
+  try {
+    mountedDirHandle = await window.showDirectoryPicker();
+    const mountBtn = document.getElementById('mountBtn');
+    if (mountBtn) mountBtn.classList.add('active');
+    if (previewOpen) renderPreview();
+  } catch (err) {
+    console.error('Failed to mount folder:', err);
+  }
+}
+
+async function getFileHandleFromPath(dirHandle, path) {
+  path = path.replace(/^(\.\/|\/)+/, ''); // strip leading ./ or /
+  const parts = path.split('/');
+  let currentHandle = dirHandle;
+  for (let i = 0; i < parts.length - 1; i++) {
+    currentHandle = await currentHandle.getDirectoryHandle(parts[i]);
+  }
+  return await currentHandle.getFileHandle(parts[parts.length - 1]);
+}
+
+async function resolveLocalImages() {
+  const imgs = previewEl.querySelectorAll('img[data-src]');
+  const promises = Array.from(imgs).map(async (img) => {
+    const src = img.getAttribute('data-src');
+    
+    if (localImageMap.has(src)) {
+      img.src = localImageMap.get(src);
+      return;
+    }
+
+    if (!mountedDirHandle) {
+      img.src = src; // fallback if no folder mounted
+      return;
+    }
+
+    try {
+      const fileHandle = await getFileHandleFromPath(mountedDirHandle, src);
+      const file = await fileHandle.getFile();
+      const url = URL.createObjectURL(file);
+      localImageMap.set(src, url);
+      img.src = url;
+    } catch (err) {
+      console.warn('Could not load local image:', src, err);
+      img.src = src; // fallback
+    }
+  });
+  
+  await Promise.all(promises);
 }
 
 function togglePreview() {
   previewOpen = !previewOpen;
   previewPane.classList.toggle('visible', previewOpen);
   previewBtn.classList.toggle('active', previewOpen);
-  if (previewOpen) renderPreview();
+  if (resizer) resizer.style.display = previewOpen ? 'block' : 'none';
+  if (layoutBtn) layoutBtn.style.display = previewOpen ? 'inline-flex' : 'none';
+  if (previewOpen) {
+    renderPreview();
+    editorPane.style.flex = '1 1 0%';
+    previewPane.style.flex = '1 1 0%';
+  }
 }
+
+function toggleLayout() {
+  workspace.classList.toggle('column');
+  editorPane.style.flex = '1 1 0%';
+  previewPane.style.flex = '1 1 0%';
+}
+
+/* ── Resizer Logic ─────────────────────────────────────────────── */
+let isResizing = false;
+
+resizer.addEventListener('mousedown', function(e) {
+  isResizing = true;
+  resizer.classList.add('resizing');
+  document.body.style.cursor = workspace.classList.contains('column') ? 'row-resize' : 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mousemove', function(e) {
+  if (!isResizing) return;
+  
+  e.preventDefault();
+  const rect = workspace.getBoundingClientRect();
+  
+  if (workspace.classList.contains('column')) {
+    let topHeight = e.clientY - rect.top;
+    if (topHeight < 50) topHeight = 50;
+    if (topHeight > rect.height - 50) topHeight = rect.height - 50;
+    let percent = (topHeight / rect.height) * 100;
+    editorPane.style.flex = `0 0 ${percent}%`;
+    previewPane.style.flex = `1 1 0%`;
+  } else {
+    let leftWidth = e.clientX - rect.left;
+    if (leftWidth < 50) leftWidth = 50;
+    if (leftWidth > rect.width - 50) leftWidth = rect.width - 50;
+    let percent = (leftWidth / rect.width) * 100;
+    editorPane.style.flex = `0 0 ${percent}%`;
+    previewPane.style.flex = `1 1 0%`;
+  }
+});
+
+document.addEventListener('mouseup', function(e) {
+  if (isResizing) {
+    isResizing = false;
+    resizer.classList.remove('resizing');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+});
 
 /* ── Synchronous Scrolling ─────────────────────────────────────── */
 let isSyncingScroll = false;
@@ -1123,7 +1287,8 @@ function exportFile() {
 
 function exportHtml() {
   const styles = document.querySelector('style').innerHTML;
-  const htmlContent = parseMarkdown(editor.value);
+  let htmlContent = parseMarkdown(editor.value);
+  htmlContent = htmlContent.replace(/<img data-src="/g, '<img src="');
   
   const fullHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -1391,9 +1556,10 @@ function generatePdf() {
   }
 }
 
-function doGeneratePdf() {
+async function doGeneratePdf() {
   if (!previewOpen) togglePreview();
-  renderPreview();
+  previewEl.innerHTML = parseMarkdown(editor.value);
+  await resolveLocalImages();
   
   const originalText = saveIndicator.textContent;
   saveIndicator.textContent = 'Generating PDF...';
@@ -1447,12 +1613,13 @@ function doGeneratePdf() {
 }
 
 /* ── Export to PDF / Print ───────────────────────────────────────── */
-function exportToPdf() {
+async function exportToPdf() {
   // Ensure preview is rendered
   if (!previewOpen) {
     togglePreview();
   }
-  renderPreview();
+  previewEl.innerHTML = parseMarkdown(editor.value);
+  await resolveLocalImages();
   
   // Show a brief message to the user
   const originalText = saveIndicator.textContent;
